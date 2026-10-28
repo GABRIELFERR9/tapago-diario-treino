@@ -1,0 +1,6 @@
+{
+  "appId": "br.com.cbro.tapago",
+  "appName": "Tá Pago",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}

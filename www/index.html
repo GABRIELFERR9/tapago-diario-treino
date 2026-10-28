@@ -1,0 +1,511 @@
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#17181a">
+<title>Tá Pago</title>
+<style>
+  :root{
+    --paper:#efece4;        /* mesa de papel */
+    --recibo:#fbfaf6;       /* papel do recibo */
+    --ink:#1b1c1e;          /* tinta */
+    --ink-2:#4c4e52;
+    --fade:#8b887e;         /* impressão fraca */
+    --linha:#d8d3c6;
+    --stamp:#c2242f;        /* carimbo vermelho */
+    --stamp-soft:#f7e3e4;
+    --ok:#1c6e45;
+    --mono:"Courier New",ui-monospace,Consolas,monospace;
+    --disp:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{background:var(--paper);}
+  body{font-family:var(--mono);color:var(--ink);line-height:1.5;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom,0));overscroll-behavior-y:none;}
+  .wrap{max-width:520px;margin:0 auto;}
+  button{font-family:inherit;}
+
+  /* ═══ tipografia display (posters de ginásio) ═══ */
+  .disp{font-family:var(--disp);font-weight:900;text-transform:uppercase;letter-spacing:-.3px;}
+
+  /* ═══ carimbo ═══ */
+  .stamp{display:inline-block;border:3px double var(--stamp);color:var(--stamp);
+    font-family:var(--disp);font-weight:900;text-transform:uppercase;letter-spacing:2px;
+    padding:3px 12px;transform:rotate(-6deg);mix-blend-mode:multiply;}
+
+  /* ═══ AUTH ═══ */
+  #authView{position:fixed;inset:0;z-index:50;background:var(--ink);display:none;
+    align-items:center;justify-content:center;padding:22px;}
+  #authView.on{display:flex;}
+  #authView::before{content:"TREINOU  PROVOU  PAGOU  ";position:absolute;inset:auto 0 18px 0;
+    color:#2e2f33;font-family:var(--disp);font-weight:900;font-size:26px;white-space:nowrap;
+    overflow:hidden;letter-spacing:4px;opacity:.8;}
+  .authCard{background:var(--recibo);width:100%;max-width:390px;padding:26px 22px 20px;
+    border:1px solid var(--linha);position:relative;}
+  .authCard::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:12px;
+    background:linear-gradient(45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%),
+               linear-gradient(-45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%);
+    background-size:14px 24px;}
+  .authHead{text-align:center;border-bottom:2px dashed var(--linha);padding-bottom:14px;margin-bottom:16px;}
+  .authHead .stamp{font-size:26px;}
+  .authHead small{display:block;margin-top:10px;color:var(--fade);font-size:11px;letter-spacing:1px;}
+  .fld{margin-bottom:12px;}
+  .fld label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--ink-2);margin-bottom:4px;text-transform:uppercase;}
+  .fld input{width:100%;border:none;border-bottom:2px solid var(--ink);background:transparent;
+    padding:8px 2px;font-size:15px;font-family:var(--mono);color:var(--ink);border-radius:0;}
+  .fld input:focus{outline:none;border-bottom-color:var(--stamp);}
+  .btn{width:100%;border:2px solid var(--ink);background:var(--ink);color:var(--recibo);
+    padding:14px;font-size:14px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-weight:700;}
+  .btn:active{transform:translate(1px,1px);}
+  .btn.line{background:transparent;color:var(--ink);margin-top:10px;}
+  .btn.red{background:var(--stamp);border-color:var(--stamp);}
+  .authErr{background:var(--stamp-soft);color:var(--stamp);font-size:12px;padding:9px 11px;
+    margin-bottom:12px;display:none;border-left:4px solid var(--stamp);}
+
+  /* ═══ APP BAR ═══ */
+  .bar{position:sticky;top:0;z-index:20;background:var(--ink);color:var(--recibo);
+    padding:calc(10px + env(safe-area-inset-top,0)) 16px 10px;display:flex;align-items:center;gap:10px;}
+  .bar .lg{font-family:var(--disp);font-weight:900;font-size:17px;letter-spacing:1px;}
+  .bar .lg i{font-style:normal;color:var(--stamp);}
+  .ofensiva{margin-left:auto;font-size:12px;letter-spacing:1px;border:1.5px solid var(--recibo);
+    padding:5px 11px;font-weight:700;}
+  .ofensiva b{color:#ffb3ba;}
+
+  main{padding:16px 14px;}
+  .view{display:none;} .view.on{display:block;animation:up .22s ease;}
+  @keyframes up{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @keyframes slam{0%{transform:rotate(-6deg) scale(2.6);opacity:0;}60%{transform:rotate(-6deg) scale(.95);opacity:1;}100%{transform:rotate(-6deg) scale(1);}}
+  @media (prefers-reduced-motion:reduce){.view.on{animation:none;} .okStamp{animation:none!important;}}
+  .secTit{font-family:var(--disp);font-weight:900;font-size:20px;text-transform:uppercase;letter-spacing:-.3px;}
+  .secSub{color:var(--fade);font-size:11.5px;margin:2px 0 14px;letter-spacing:.5px;}
+
+  /* ═══ RECIBO (post do feed) ═══ */
+  .rc{background:var(--recibo);border:1px solid var(--linha);margin-bottom:22px;position:relative;
+    box-shadow:0 1px 0 rgba(27,28,30,.12);}
+  .rc::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:12px;
+    background:linear-gradient(45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%),
+               linear-gradient(-45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%);
+    background-size:14px 24px;}
+  .rc .top{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px 6px;
+    font-size:10.5px;color:var(--fade);letter-spacing:1px;border-bottom:1px dashed var(--linha);}
+  .rc .cliente{padding:9px 14px 2px;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+  .rc .fotoWrap{position:relative;margin:8px 14px;}
+  .rc .fotoWrap img{width:100%;max-height:320px;object-fit:cover;display:block;filter:contrast(1.02);}
+  .rc .fotoWrap .stamp{position:absolute;right:8px;bottom:10px;font-size:15px;background:rgba(251,250,246,.55);}
+  .rc .linhas{padding:4px 14px 10px;font-size:12.5px;}
+  .li{display:flex;align-items:baseline;gap:6px;margin:3px 0;}
+  .li .dots{flex:1;border-bottom:2px dotted #b9b4a6;transform:translateY(-3px);}
+  .li b{letter-spacing:.5px;}
+  .rc .cap{margin:2px 14px 8px;font-size:12.5px;color:var(--ink-2);font-style:italic;}
+  .rc .foot{display:flex;justify-content:space-between;align-items:center;border-top:2px dashed var(--linha);
+    padding:8px 14px 12px;gap:8px;}
+  .rc .foot .pago{color:var(--stamp);font-weight:700;letter-spacing:1.5px;font-size:12.5px;}
+  .assinar{border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--mono);
+    font-size:10.5px;letter-spacing:1px;text-transform:uppercase;padding:6px 11px;cursor:pointer;font-weight:700;}
+  .assinar.on{background:var(--ink);color:var(--recibo);}
+  .anular{position:absolute;top:8px;right:10px;border:none;background:none;color:var(--fade);
+    font-family:var(--mono);font-size:9.5px;letter-spacing:1px;cursor:pointer;text-decoration:underline;}
+  .maisBtn{width:100%;border:2px dashed var(--ink-2);background:transparent;color:var(--ink-2);
+    padding:13px;font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;
+    cursor:pointer;margin-bottom:22px;font-weight:700;}
+  .empty{text-align:center;color:var(--fade);padding:44px 18px;font-size:12.5px;letter-spacing:.5px;}
+  .empty .disp{font-size:16px;color:var(--ink-2);margin-bottom:6px;}
+
+  /* ═══ CHECK-IN ═══ */
+  .folha{background:var(--recibo);border:1px solid var(--linha);padding:16px 14px;position:relative;margin-bottom:22px;}
+  .folha::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:12px;
+    background:linear-gradient(45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%),
+               linear-gradient(-45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%);
+    background-size:14px 24px;}
+  .tipoRow{display:flex;border:2px solid var(--ink);margin-bottom:14px;}
+  .tipoBtn{flex:1;padding:13px 6px;text-align:center;cursor:pointer;font-size:12px;letter-spacing:1.5px;
+    text-transform:uppercase;font-weight:700;color:var(--ink-2);background:var(--recibo);}
+  .tipoBtn + .tipoBtn{border-left:2px solid var(--ink);}
+  .tipoBtn.on{background:var(--ink);color:var(--recibo);}
+  .runFields{display:none;gap:12px;} .runFields.on{display:flex;}
+  .runFields .fld{flex:1;}
+  .photoBox{border:2px dashed var(--ink-2);padding:16px;text-align:center;color:var(--ink-2);
+    font-size:11.5px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin:4px 0 14px;}
+  .photoBox img{max-width:100%;max-height:230px;display:block;margin:0 auto;}
+
+  /* splash do carimbo */
+  .okSplash{position:fixed;inset:0;z-index:70;background:rgba(239,236,228,.97);display:none;
+    align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:30px;}
+  .okSplash.on{display:flex;}
+  .okStamp{border:6px double var(--stamp);color:var(--stamp);font-family:var(--disp);font-weight:900;
+    font-size:52px;letter-spacing:4px;padding:10px 26px;transform:rotate(-6deg);animation:slam .45s cubic-bezier(.2,1.4,.4,1);}
+  .okSplash .sub{margin-top:22px;font-size:12px;color:var(--ink-2);letter-spacing:1.5px;text-transform:uppercase;}
+
+  /* ═══ RANKING (extrato) ═══ */
+  .extrato{background:var(--recibo);border:1px solid var(--linha);padding:14px;position:relative;margin-bottom:22px;}
+  .extrato::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:12px;
+    background:linear-gradient(45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%),
+               linear-gradient(-45deg,transparent 33.3%,var(--recibo) 33.3% 66.6%,transparent 66.6%);
+    background-size:14px 24px;}
+  .extrato .cab{font-size:10.5px;color:var(--fade);letter-spacing:1.5px;text-transform:uppercase;
+    border-bottom:2px dashed var(--linha);padding-bottom:8px;margin-bottom:10px;display:flex;justify-content:space-between;}
+  .exRow{display:flex;align-items:baseline;gap:8px;padding:7px 0;font-size:13px;}
+  .exRow .pos{width:30px;font-weight:700;color:var(--ink-2);}
+  .exRow .nome{font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+  .exRow .dots{flex:1;border-bottom:2px dotted #b9b4a6;transform:translateY(-3px);}
+  .exRow .qt{font-weight:700;}
+  .exRow.me .nome,.exRow.me .qt,.exRow.me .pos{color:var(--stamp);}
+  .exRow.lider .pos{color:var(--stamp);}
+
+  /* ═══ PERFIL ═══ */
+  .carne{background:var(--recibo);border:1px solid var(--linha);padding:16px 14px;margin-bottom:14px;text-align:center;}
+  .carne .lbl{font-size:10px;color:var(--fade);letter-spacing:2px;text-transform:uppercase;}
+  .carne .num{font-family:var(--disp);font-weight:900;font-size:58px;line-height:1;color:var(--ink);}
+  .carne .num i{font-style:normal;color:var(--stamp);font-size:34px;vertical-align:18px;}
+  .carne .sub2{font-size:11px;color:var(--ink-2);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+  .bloco{background:var(--recibo);border:1px solid var(--linha);padding:14px;margin-bottom:14px;}
+  .bloco .tit{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-2);font-weight:700;
+    border-bottom:2px dashed var(--linha);padding-bottom:7px;margin-bottom:10px;}
+  .friend{display:flex;align-items:baseline;gap:8px;padding:7px 0;font-size:13px;}
+  .friend b{text-transform:uppercase;letter-spacing:.5px;}
+  .friend .dots{flex:1;border-bottom:2px dotted #b9b4a6;transform:translateY(-3px);}
+  .miniBtn{border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-size:10px;
+    letter-spacing:1px;text-transform:uppercase;padding:6px 11px;cursor:pointer;font-weight:700;font-family:var(--mono);}
+  .miniBtn.red{border-color:var(--stamp);color:var(--stamp);}
+  .searchRow{display:flex;gap:8px;}
+  .searchRow input{flex:1;border:none;border-bottom:2px solid var(--ink);background:transparent;
+    padding:8px 2px;font-size:13px;font-family:var(--mono);border-radius:0;}
+  .searchRow input:focus{outline:none;border-bottom-color:var(--stamp);}
+
+  /* ═══ NAV ═══ */
+  nav{position:fixed;bottom:0;left:0;right:0;z-index:30;background:var(--ink);
+    padding-bottom:env(safe-area-inset-bottom,0);border-top:3px solid var(--stamp);}
+  nav .inner{display:flex;max-width:520px;margin:0 auto;}
+  nav button{flex:1;background:none;border:none;padding:11px 2px 12px;cursor:pointer;color:#9a9ca1;
+    display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;letter-spacing:1.5px;
+    text-transform:uppercase;font-weight:700;font-family:var(--mono);}
+  nav button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2;}
+  nav button.on{color:var(--recibo);}
+  nav button.cta{color:var(--recibo);}
+  nav button.cta .plus{width:34px;height:34px;border:2px solid var(--stamp);color:var(--stamp);
+    display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;margin-top:-4px;}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;background:var(--ink);color:var(--recibo);
+    padding:11px 18px;font-size:12px;letter-spacing:1px;z-index:99;opacity:0;transition:.3s;max-width:88%;
+    text-align:center;border-left:4px solid var(--stamp);pointer-events:none;}
+</style>
+</head><body>
+
+<!-- AUTH -->
+<div id="authView" class="on">
+  <div class="authCard">
+    <div class="authHead">
+      <span class="stamp">TÁ PAGO</span>
+      <small>COMPROVANTE DIÁRIO DE TREINO · DESDE 2026</small>
+    </div>
+    <div class="authErr" id="authErr"></div>
+    <div class="fld" id="fldNome" style="display:none;"><label>Nome do cliente</label><input id="aNome" placeholder="GABRIEL" autocomplete="name"></div>
+    <div class="fld"><label>E-mail</label><input id="aEmail" type="email" placeholder="voce@email.com" autocomplete="email"></div>
+    <div class="fld"><label>Senha</label><input id="aSenha" type="password" placeholder="******" autocomplete="current-password"></div>
+    <button class="btn" id="btAuth">Entrar</button>
+    <button class="btn line" id="btToggle">Abrir conta</button>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap" style="display:none;">
+  <header class="bar">
+    <span class="lg">TÁ<i>★</i>PAGO</span>
+    <span class="ofensiva">OFENSIVA <b id="chipStreak">×0</b></span>
+  </header>
+
+  <main>
+    <!-- FEED -->
+    <section class="view on" id="v-feed">
+      <div class="secTit disp">Recibos emitidos</div>
+      <div class="secSub">— treino sem recibo é boato —</div>
+      <div id="feedList"><div class="empty">IMPRIMINDO…</div></div>
+    </section>
+
+    <!-- CHECK-IN -->
+    <section class="view" id="v-checkin">
+      <div class="secTit disp">Emitir recibo</div>
+      <div class="secSub">— pagou o treino de hoje? prova. —</div>
+      <div class="folha">
+        <div class="tipoRow">
+          <div class="typeBtn tipoBtn on" data-t="musculacao">Musculação</div>
+          <div class="typeBtn tipoBtn" data-t="corrida">Corrida</div>
+        </div>
+        <div class="runFields" id="runFields">
+          <div class="fld"><label>Distância (km)</label><input id="cKm" type="number" step="0.01" min="0.1" placeholder="5.0" inputmode="decimal"></div>
+          <div class="fld"><label>Pace (min:seg)</label><input id="cPace" placeholder="5:30" inputmode="numeric"></div>
+        </div>
+        <div class="fld"><label>Observação</label><input id="cCap" maxlength="280" placeholder="peito e tríceps, sem choro"></div>
+        <input type="file" id="cFoto" accept="image/*" capture="environment" style="display:none;">
+        <div class="photoBox" id="photoBox">[ anexar foto-prova ]</div>
+        <button class="btn red" id="btPostar">Carimbar: Tá Pago</button>
+      </div>
+    </section>
+
+    <!-- RANKING -->
+    <section class="view" id="v-rank">
+      <div class="secTit disp">Extrato do mês</div>
+      <div class="secSub">— quem pagou mais treino até agora —</div>
+      <div id="rankList"><div class="empty">SOMANDO…</div></div>
+    </section>
+
+    <!-- PERFIL -->
+    <section class="view" id="v-perfil">
+      <div class="secTit disp" id="pNome">—</div>
+      <div class="secSub" id="pEmail">—</div>
+      <div class="carne">
+        <div class="lbl">Carnê de ofensiva</div>
+        <div class="num"><i>×</i><span id="pStreak">0</span></div>
+        <div class="sub2">dias pagos em sequência</div>
+      </div>
+      <div class="bloco">
+        <div class="tit">+ Adicionar parceiro de treino</div>
+        <div class="searchRow"><input id="sEmail" type="email" placeholder="email do parceiro"><button class="miniBtn" id="btBuscar">Buscar</button></div>
+        <div id="sResult"></div>
+      </div>
+      <div class="bloco">
+        <div class="tit">Cobranças ativas (seguindo)</div>
+        <div id="pSeguindo"><span style="color:var(--fade);font-size:12px;">ninguém — adicione um parceiro acima</span></div>
+      </div>
+      <button class="btn line" id="btSair">Encerrar sessão</button>
+    </section>
+  </main>
+
+  <nav><div class="inner">
+    <button data-v="feed" class="on"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-2.4-1.8L14 21l-2-1.6L10 21l-2.6-1.8L5 21z"/><path d="M9 8h6M9 12h6"/></svg>Recibos</button>
+    <button data-v="checkin" class="cta"><span class="plus">+</span>Pagar</button>
+    <button data-v="rank"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Extrato</button>
+    <button data-v="perfil"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Conta</button>
+  </div></nav>
+</div>
+
+<div class="okSplash" id="okSplash">
+  <div class="okStamp">TÁ PAGO</div>
+  <div class="sub" id="okMsg">recibo emitido — mais um dia vencido</div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const API="https://cbrosistema.duckdns.org/fitapi";
+const el=i=>document.getElementById(i);
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+let TOKEN=localStorage.getItem("tp_token")||"";
+let ME=null,registrando=false,tipoSel="musculacao",fotoFile=null;
+
+async function api(path,opts={}){
+  opts.headers=Object.assign({},opts.headers,TOKEN?{Authorization:"Bearer "+TOKEN}:{});
+  if(opts.body&&!(opts.body instanceof FormData)){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(opts.body);}
+  const r=await fetch(API+path,opts);
+  if(r.status===401&&path!=="/api/v1/auth/login"){logout();throw new Error("expirou");}
+  return r;
+}
+function toast(m){const t=el("toast");t.textContent=m;t.style.opacity="1";clearTimeout(t._x);t._x=setTimeout(()=>t.style.opacity="0",2400);}
+function tempoAtras(iso){
+  let d=new Date(iso);if(!iso.endsWith("Z")&&!iso.includes("+"))d=new Date(iso+"Z");
+  const s=(Date.now()-d.getTime())/1000;
+  if(s<60)return"AGORA";if(s<3600)return"HÁ "+Math.floor(s/60)+" MIN";
+  if(s<86400)return"HÁ "+Math.floor(s/3600)+" H";return"HÁ "+Math.floor(s/86400)+" D";
+}
+function dataRecibo(iso){
+  let d=new Date(iso);if(!iso.endsWith("Z")&&!iso.includes("+"))d=new Date(iso+"Z");
+  return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+const paceFmt=s=>s?Math.floor(s/60)+":"+String(s%60).padStart(2,"0")+"/KM":null;
+
+/* ── Auth ── */
+el("btToggle").onclick=()=>{registrando=!registrando;el("fldNome").style.display=registrando?"block":"none";
+  el("btAuth").textContent=registrando?"Abrir conta":"Entrar";
+  el("btToggle").textContent=registrando?"Já tenho conta":"Abrir conta";el("authErr").style.display="none";};
+el("btAuth").onclick=async()=>{
+  const email=el("aEmail").value.trim(),senha=el("aSenha").value;
+  el("authErr").style.display="none";
+  if(!email||!senha)return mostraErr("Preencha e-mail e senha.");
+  el("btAuth").disabled=true;
+  try{
+    let r;
+    if(registrando){
+      const nome=el("aNome").value.trim();
+      if(nome.length<2){mostraErr("Digite seu nome.");return;}
+      r=await api("/api/v1/auth/register",{method:"POST",body:{email,password:senha,name:nome}});
+    }else{
+      r=await api("/api/v1/auth/login",{method:"POST",body:{email,password:senha}});
+    }
+    const d=await r.json();
+    if(!r.ok){mostraErr(d.detail||"Falha na autenticação.");return;}
+    TOKEN=d.access_token;localStorage.setItem("tp_token",TOKEN);
+    await entrar();
+  }catch(e){mostraErr("Sem conexão com o servidor.");}
+  finally{el("btAuth").disabled=false;}
+};
+function mostraErr(m){const e=el("authErr");e.textContent=m;e.style.display="block";}
+function logout(){TOKEN="";localStorage.removeItem("tp_token");el("appWrap").style.display="none";el("authView").classList.add("on");}
+el("btSair").onclick=logout;
+
+async function entrar(){
+  const r=await api("/api/v1/auth/me");
+  if(!r.ok){logout();return;}
+  ME=await r.json();
+  el("authView").classList.remove("on");el("appWrap").style.display="block";
+  el("pNome").textContent=ME.name;el("pEmail").textContent=ME.email;
+  carregarFeed();carregarStreak();
+}
+
+/* ── Navegação ── */
+const V={feed:el("v-feed"),checkin:el("v-checkin"),rank:el("v-rank"),perfil:el("v-perfil")};
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  Object.keys(V).forEach(k=>V[k].classList.toggle("on",k===b.dataset.v));
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  if(b.dataset.v==="feed")carregarFeed();
+  if(b.dataset.v==="rank")carregarRanking();
+  if(b.dataset.v==="perfil"){carregarStreak();carregarSeguindo();}
+  window.scrollTo(0,0);
+});
+
+/* ── Feed (recibos) ── */
+const PAGE=20;let feedOffset=0;
+function reciboHtml(p){
+  const serv=p.workout_type==="corrida"?"CORRIDA":"MUSCULAÇÃO";
+  const foto=p.photo_url?'<div class="fotoWrap"><img loading="lazy" src="'+API+esc(p.photo_url)+'" alt=""><span class="stamp">TÁ PAGO</span></div>':"";
+  let linhas='<div class="li"><span>SERVIÇO</span><span class="dots"></span><b>'+serv+'</b></div>';
+  if(p.workout_type==="corrida"){
+    linhas+='<div class="li"><span>DISTÂNCIA</span><span class="dots"></span><b>'+(+p.distance_km).toFixed(1).replace(".",",")+' KM</b></div>';
+    if(p.pace_sec_km)linhas+='<div class="li"><span>PACE</span><span class="dots"></span><b>'+paceFmt(p.pace_sec_km)+'</b></div>';
+  }
+  const assinTxt=p.assinaturas>0?("✍ "+p.assinaturas):"✍ assinar";
+  const btAss=p.meu
+    ?'<span style="color:var(--fade);font-size:10.5px;">'+(p.assinaturas>0?("✍ "+p.assinaturas+" assinatura"+(p.assinaturas>1?"s":"")):"sem assinaturas")+'</span>'
+    :'<button class="assinar'+(p.assinado_por_mim?" on":"")+'" data-id="'+p.id+'" data-on="'+(p.assinado_por_mim?1:0)+'">'+assinTxt+'</button>';
+  const anular=p.meu?'<button class="anular" data-del="'+p.id+'">anular</button>':"";
+  return '<div class="rc">'+anular+
+    '<div class="top"><span>RECIBO Nº '+esc(p.id.slice(0,8).toUpperCase())+'</span><span>'+dataRecibo(p.created_at)+'</span></div>'+
+    '<div class="cliente">CLIENTE: '+esc(p.author_name)+(p.meu?" (VOCÊ)":"")+'</div>'+
+    foto+
+    '<div class="linhas">'+linhas+'</div>'+
+    (p.caption?'<div class="cap">"'+esc(p.caption)+'"</div>':"")+
+    '<div class="foot"><span class="pago">✔ TÁ PAGO</span>'+btAss+'<span style="color:var(--fade);font-size:10.5px;letter-spacing:1px;">'+tempoAtras(p.created_at)+'</span></div>'+
+  '</div>';
+}
+function ligarAcoesFeed(){
+  el("feedList").querySelectorAll(".assinar").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.id,on=b.dataset.on==="1";
+    try{
+      await api("/api/v1/checkins/"+id+"/assinar",{method:on?"DELETE":"POST"});
+      carregarFeed(true);
+    }catch(e){toast("Erro ao assinar.");}
+  });
+  el("feedList").querySelectorAll(".anular").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Anular este recibo? Ele some do feed e da sua contagem."))return;
+    try{
+      await api("/api/v1/checkins/"+b.dataset.del,{method:"DELETE"});
+      toast("Recibo anulado.");carregarFeed(true);carregarStreak();
+    }catch(e){toast("Erro ao anular.");}
+  });
+  const mb=el("btMaisFeed");if(mb)mb.onclick=()=>carregarFeed(false);
+}
+async function carregarFeed(reset=true){
+  if(reset)feedOffset=0;
+  try{
+    const r=await api("/api/v1/social/feed?limit="+PAGE+"&offset="+feedOffset);const posts=await r.json();
+    if(reset&&!posts.length){el("feedList").innerHTML='<div class="empty"><div class="disp">Nenhum recibo emitido</div>Pague o treino de hoje no botão [ + PAGAR ]<br>ou adicione parceiros na aba CONTA.</div>';return;}
+    const html=posts.map(reciboHtml).join("");
+    const mais=posts.length===PAGE?'<button class="maisBtn" id="btMaisFeed">▼ puxar mais recibos</button>':"";
+    if(reset)el("feedList").innerHTML=html+mais;
+    else{
+      const old=el("btMaisFeed");if(old)old.remove();
+      el("feedList").insertAdjacentHTML("beforeend",html+mais);
+    }
+    feedOffset+=posts.length;
+    ligarAcoesFeed();
+  }catch(e){if(reset)el("feedList").innerHTML='<div class="empty">FALHA NA IMPRESSÃO — verifique a conexão.</div>';}
+}
+
+/* ── Check-in ── */
+document.querySelectorAll(".tipoBtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tipoBtn").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+  tipoSel=b.dataset.t;el("runFields").classList.toggle("on",tipoSel==="corrida");
+});
+el("photoBox").onclick=()=>el("cFoto").click();
+el("cFoto").onchange=()=>{
+  fotoFile=el("cFoto").files[0]||null;
+  if(fotoFile){const u=URL.createObjectURL(fotoFile);el("photoBox").innerHTML='<img src="'+u+'" alt="foto">';}
+};
+function parsePace(txt){
+  if(!txt)return null;const m=txt.trim().match(/^(\d{1,2})[:.](\d{2})$/);
+  if(m)return(+m[1])*60+(+m[2]);const n=parseFloat(txt.replace(",","."));
+  return isNaN(n)?null:Math.round(n*60);
+}
+el("btPostar").onclick=async()=>{
+  const fd=new FormData();fd.append("workout_type",tipoSel);
+  const cap=el("cCap").value.trim();if(cap)fd.append("caption",cap);
+  if(tipoSel==="corrida"){
+    const km=parseFloat(el("cKm").value.replace(",","."));
+    if(!km||km<=0)return toast("Informe a distância da corrida.");
+    fd.append("distance_km",km);
+    const p=parsePace(el("cPace").value);if(p)fd.append("pace_sec_km",p);
+  }
+  if(fotoFile)fd.append("foto",fotoFile);
+  el("btPostar").disabled=true;el("btPostar").textContent="CARIMBANDO…";
+  try{
+    const r=await api("/api/v1/checkins",{method:"POST",body:fd});
+    const d=await r.json();
+    if(!r.ok){toast(d.detail||"Erro ao emitir o recibo");return;}
+    el("cCap").value="";el("cKm").value="";el("cPace").value="";fotoFile=null;el("cFoto").value="";
+    el("photoBox").innerHTML="[ anexar foto-prova ]";
+    const st=await carregarStreak();
+    el("okMsg").textContent=st>1?("recibo emitido — ×"+st+" dias em sequência"):"recibo emitido — mais um dia vencido";
+    el("okSplash").classList.add("on");
+    setTimeout(()=>{el("okSplash").classList.remove("on");document.querySelector('nav button[data-v="feed"]').click();},1700);
+  }catch(e){toast("Sem conexão.");}
+  finally{el("btPostar").disabled=false;el("btPostar").textContent="CARIMBAR: TÁ PAGO";}
+};
+
+/* ── Ranking (extrato) ── */
+async function carregarRanking(){
+  try{
+    const r=await api("/api/v1/social/ranking");const rk=await r.json();
+    const mes=new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).toUpperCase();
+    const rows=rk.map(x=>'<div class="exRow'+(ME&&x.user_id===ME.id?" me":"")+(x.posicao===1?" lider":"")+'">'+
+      '<span class="pos">'+String(x.posicao).padStart(2,"0")+'</span>'+
+      '<span class="nome">'+esc(x.name)+(ME&&x.user_id===ME.id?" ◄":"")+'</span>'+
+      '<span class="dots"></span><span class="qt">'+x.checkins_no_mes+'</span></div>').join("");
+    el("rankList").innerHTML='<div class="extrato"><div class="cab"><span>POS / CLIENTE</span><span>'+mes+'</span></div>'+
+      (rows||'<div class="empty">SEM MOVIMENTAÇÃO.</div>')+'</div>';
+  }catch(e){el("rankList").innerHTML='<div class="empty">FALHA AO SOMAR.</div>';}
+}
+
+/* ── Perfil / streak / parceiros ── */
+async function carregarStreak(){
+  try{
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Sao_Paulo";
+    const r=await api("/api/v1/checkins/streak?tz="+encodeURIComponent(tz));
+    const d=await r.json();
+    el("chipStreak").textContent="×"+d.streak_dias;el("pStreak").textContent=d.streak_dias;
+    return d.streak_dias;
+  }catch(e){return 0;}
+}
+async function carregarSeguindo(){
+  try{
+    const r=await api("/api/v1/social/following");const lista=await r.json();
+    el("pSeguindo").innerHTML=lista.length?lista.map(u=>'<div class="friend"><b>'+esc(u.name)+'</b><span class="dots"></span><button class="miniBtn red" data-id="'+u.id+'">Cancelar</button></div>').join(""):'<span style="color:var(--fade);font-size:12px;">ninguém — adicione um parceiro acima</span>';
+    el("pSeguindo").querySelectorAll(".miniBtn").forEach(b=>b.onclick=async()=>{await api("/api/v1/social/follow/"+b.dataset.id,{method:"DELETE"});carregarSeguindo();});
+  }catch(e){}
+}
+el("btBuscar").onclick=async()=>{
+  const email=el("sEmail").value.trim();if(!email)return;
+  el("sResult").innerHTML='<span style="color:var(--fade);font-size:12px;">procurando…</span>';
+  try{
+    const r=await api("/api/v1/social/search?email="+encodeURIComponent(email));
+    const d=await r.json();
+    if(!r.ok){el("sResult").innerHTML='<span style="color:var(--fade);font-size:12px;">'+esc(d.detail||"não encontrado")+'</span>';return;}
+    el("sResult").innerHTML='<div class="friend"><b>'+esc(d.name)+'</b><span class="dots"></span><button class="miniBtn" id="btSeguirRes">Cobrar</button></div>';
+    el("btSeguirRes").onclick=async()=>{
+      const rr=await api("/api/v1/social/follow/"+d.id,{method:"POST"});
+      if(rr.ok||rr.status===204){toast("Agora você cobra "+d.name+".");el("sResult").innerHTML="";el("sEmail").value="";carregarSeguindo();}
+      else{const e=await rr.json();toast(e.detail||"Erro");}
+    };
+  }catch(e){el("sResult").innerHTML='<span style="color:var(--fade);font-size:12px;">erro de conexão</span>';}
+};
+
+/* ── Boot ── */
+(async()=>{ if(TOKEN){try{await entrar();}catch(e){logout();}} })();
+</script>
+</body></html>
